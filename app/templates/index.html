@@ -1,0 +1,434 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ARINC-429-completo</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script defer src="{{ url_for('static', filename='js/main.js') }}"></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <p class="eyebrow">Laboratorio de codificación</p>
+        <nav class="section-nav" aria-label="Secciones">
+          <a href="#instrumentos">Instrumentos</a>
+          <a href="#envios">Envíos</a>
+        </nav>
+        <span class="status"><span class="status-dot"></span> Aplicación iniciada</span>
+      </header>
+      <section class="intro" aria-labelledby="page-title">
+        <div class="intro-copy">
+          <h1 id="page-title">ARINC-429<span>completo</span></h1>
+          <p>Registro y configuración de instrumentos aeronáuticos para codificación ARINC 429.</p>
+        </div>
+        <div class="word-mark" aria-hidden="true">429</div>
+      </section>
+      {% set mensajes_flash = get_flashed_messages(with_categories=true) %}
+      {% set aviso_envios = request.args.get('aviso') == 'envios' or request.endpoint in ('main.crear_envio', 'main.editar_envio', 'main.transmitir_envio') %}
+      <section class="workspace" id="instrumentos" aria-labelledby="instrumentos-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Configuración</p>
+            <h2 id="instrumentos-title">Instrumentos</h2>
+          </div>
+          <a class="button button-primary" href="{{ url_for('main.crear_instrumento') }}">＋ Agregar instrumento</a>
+        </div>
+
+        {% if mensajes_flash and not aviso_envios %}
+          <div class="messages" aria-live="polite">
+            {% for categoria, mensaje in mensajes_flash %}
+              <p class="message message-{{ categoria }}">{{ mensaje }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% if mostrar_formulario %}
+          {% set editando = instrumento_editar is not none %}
+          <section class="instrument-form" aria-labelledby="form-title">
+            <div class="form-heading">
+              <div>
+                <p class="eyebrow">{{ 'Modificar datos' if editando else 'Nuevo registro' }}</p>
+                <h3 id="form-title">{{ 'Editar instrumento' if editando else 'Agregar instrumento' }}</h3>
+              </div>
+              <a class="button button-quiet" href="{{ url_for('main.index') }}">Cancelar</a>
+            </div>
+            <form method="post" action="{{ url_for('main.editar_instrumento', instrumento_id=instrumento_editar.id) if editando else url_for('main.crear_instrumento') }}">
+              <div class="form-grid">
+                <label class="field field-wide" for="nombre">
+                  <span>Nombre</span>
+                  <input id="nombre" name="nombre" maxlength="120" required value="{{ datos_form.get('nombre', instrumento_editar.nombre if editando else '') }}" autocomplete="off">
+                </label>
+                <label class="field" for="unidad">
+                  <span>Unidad de medida</span>
+                  <input id="unidad" name="unidad" maxlength="24" required placeholder="Ej.: ft, kt, °C" value="{{ datos_form.get('unidad', instrumento_editar.unidad if editando else '') }}">
+                </label>
+                <label class="field" for="valor_minimo">
+                  <span>Valor mínimo</span>
+                  <input id="valor_minimo" name="valor_minimo" type="number" step="any" required value="{{ datos_form.get('valor_minimo', instrumento_editar.valor_minimo if editando else '') }}">
+                </label>
+                <label class="field" for="valor_maximo">
+                  <span>Valor máximo</span>
+                  <input id="valor_maximo" name="valor_maximo" type="number" step="any" required value="{{ datos_form.get('valor_maximo', instrumento_editar.valor_maximo if editando else '') }}">
+                </label>
+                <label class="field" for="label">
+                  <span>Label ARINC 429 <small>0 a 255</small></span>
+                  <input id="label" name="label" type="number" min="0" max="255" step="1" required value="{{ datos_form.get('label', instrumento_editar.label if editando else '') }}">
+                </label>
+                <label class="field" for="escala">
+                  <span>Resolución BNR <small>mayor que 0</small></span>
+                  <input id="escala" name="escala" type="number" min="0" step="any" required value="{{ datos_form.get('escala', instrumento_editar.escala if editando else '') }}">
+                </label>
+                <label class="field" for="sdi">
+                  <span>SDI</span>
+                  <select id="sdi" name="sdi" required>
+                    {% set sdi_actual = datos_form.get('sdi', instrumento_editar.sdi if editando else '0')|string %}
+                    {% for opcion in range(4) %}
+                      <option value="{{ opcion }}" {% if sdi_actual == opcion|string %}selected{% endif %}>{{ opcion }}</option>
+                    {% endfor %}
+                  </select>
+                </label>
+              </div>
+              <div class="form-actions">
+                <button class="button button-primary" type="submit">{{ 'Guardar cambios' if editando else 'Crear instrumento' }}</button>
+              </div>
+            </form>
+          </section>
+        {% endif %}
+
+        <div class="table-heading">
+          <p><strong>{{ instrumentos|length }}</strong> {{ 'instrumento registrado' if instrumentos|length == 1 else 'instrumentos registrados' }}</p>
+        </div>
+        {% if instrumentos %}
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Instrumento</th>
+                  <th scope="col">Rango</th>
+                  <th scope="col">Label</th>
+                  <th scope="col">Resolución BNR</th>
+                  <th scope="col">SDI</th>
+                  <th scope="col"><span class="visually-hidden">Acciones</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for instrumento in instrumentos %}
+                  <tr>
+                    <td data-label="Instrumento"><strong>{{ instrumento.nombre }}</strong><span class="cell-note">{{ instrumento.unidad }}</span></td>
+                    <td data-label="Rango">{{ instrumento.valor_minimo }} a {{ instrumento.valor_maximo }} <span class="cell-unit">{{ instrumento.unidad }}</span></td>
+                    <td data-label="Label"><code>{{ instrumento.label }}</code><span class="cell-note">0x{{ '%02X'|format(instrumento.label) }}</span></td>
+                    <td data-label="Resolución BNR">{{ instrumento.escala }}</td>
+                    <td data-label="SDI">{{ instrumento.sdi }}</td>
+                    <td class="row-actions">
+                      <a class="button button-small button-quiet" href="{{ url_for('main.editar_instrumento', instrumento_id=instrumento.id) }}">Editar</a>
+                      <form method="post" action="{{ url_for('main.eliminar_instrumento', instrumento_id=instrumento.id) }}" onsubmit="return confirm('¿Eliminar el instrumento {{ instrumento.nombre }}?');">
+                        <button class="button button-small button-danger" type="submit">Eliminar</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <span class="empty-index">01 / REGISTRO</span>
+            <h3>Aún no hay instrumentos</h3>
+            <p>Agregá el primero para definir su rango y parámetros de codificación.</p>
+            <a class="button button-quiet" href="{{ url_for('main.crear_instrumento') }}">＋ Agregar instrumento</a>
+          </div>
+        {% endif %}
+        <p class="notice"><strong>Resolución BNR:</strong> representa el incremento por unidad del valor codificado.</p>
+      </section>
+      <section class="workspace send-workspace" id="envios" aria-labelledby="envios-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Generación de palabra</p>
+            <h2 id="envios-title">Envíos</h2>
+          </div>
+          <a class="button button-primary" href="{{ url_for('main.crear_envio') }}#envios">＋ Nuevo envío</a>
+        </div>
+        {% if mensajes_flash and aviso_envios %}
+          <div class="messages" aria-live="polite">
+            {% for categoria, mensaje in mensajes_flash %}
+              <p class="message message-{{ categoria }}">{{ mensaje }}</p>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+        {% if mostrar_formulario_envio %}
+          {% set editando_envio = envio_editar is not none %}
+          {% set instrumento_seleccionado = datos_envio.get('instrumento_id', envio_editar.instrumento_id if editando_envio else '')|string %}
+          <section class="instrument-form send-form" aria-labelledby="send-form-title">
+            <div class="form-heading">
+              <div>
+                <p class="eyebrow">{{ 'Modificar y recodificar' if editando_envio else 'Nueva codificación' }}</p>
+                <h3 id="send-form-title">{{ 'Editar envío' if editando_envio else 'Registrar envío' }}</h3>
+              </div>
+              <a class="button button-quiet" href="{{ url_for('main.index') }}#envios">Cancelar</a>
+            </div>
+            {% if instrumentos %}
+              <form method="post" action="{{ url_for('main.editar_envio', envio_id=envio_editar.id) if editando_envio else url_for('main.crear_envio') }}#envios">
+                <div class="form-grid send-form-grid">
+                  <label class="field field-wide" for="instrumento_id">
+                    <span>Instrumento</span>
+                    <select id="instrumento_id" name="instrumento_id" required data-instrument-select>
+                      <option value="" disabled {% if not instrumento_seleccionado %}selected{% endif %}>Seleccioná un instrumento</option>
+                      {% for instrumento in instrumentos %}
+                        <option value="{{ instrumento.id }}" data-min="{{ instrumento.valor_minimo }}" data-max="{{ instrumento.valor_maximo }}" data-unit="{{ instrumento.unidad }}" data-scale="{{ instrumento.escala }}" data-offset="{{ instrumento.offset }}" data-label="{{ instrumento.label }}" data-sdi="{{ instrumento.sdi }}" data-ssm="{{ instrumento.ssm }}" {% if instrumento_seleccionado == instrumento.id|string %}selected{% endif %}>{{ instrumento.nombre }} ({{ instrumento.unidad }})</option>
+                      {% endfor %}
+                    </select>
+                  </label>
+                  <label class="field" for="valor_envio">
+                    <span>Valor a codificar</span>
+                    <input id="valor_envio" name="valor" type="number" step="any" required value="{{ datos_envio.get('valor', envio_editar.valor if editando_envio else '') }}" data-send-value>
+                  </label>
+                  <p class="range-hint" data-range-hint aria-live="polite">El rango permitido depende del instrumento seleccionado.</p>
+                </div>
+                <div class="form-actions">
+                  <button class="button button-primary" type="submit">{{ 'Guardar y recodificar' if editando_envio else 'Validar y generar palabra' }}</button>
+                </div>
+              </form>
+            {% else %}
+              <div class="empty-inline">
+                <p>Primero registrá un instrumento para poder asociarlo a un envío.</p>
+                <a class="button button-quiet" href="{{ url_for('main.index') }}#instrumentos">Ir a instrumentos</a>
+              </div>
+            {% endif %}
+          </section>
+        {% endif %}
+
+        <div class="table-heading">
+          <p><strong>{{ envios|length }}</strong> {{ 'envío registrado' if envios|length == 1 else 'envíos registrados' }}</p>
+        </div>
+        {% if envios %}
+          <div class="table-scroll">
+            <table class="send-table">
+              <thead>
+                <tr>
+                  <th scope="col">Fecha</th>
+                  <th scope="col">Instrumento</th>
+                  <th scope="col">Valor</th>
+                  <th scope="col">Hexadecimal</th>
+                  <th scope="col">Palabra y campos</th>
+                  <th scope="col">Transmisión UART</th>
+                  <th scope="col">Salida de audio</th>
+                  <th scope="col"><span class="visually-hidden">Acciones</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for envio, palabra in envios %}
+                  <tr>
+                    <td data-label="Fecha">{{ envio.creado_en.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                    <td data-label="Instrumento"><strong>{{ envio.instrumento.nombre }}</strong><span class="cell-note">{{ envio.instrumento.unidad }}</span></td>
+                    <td data-label="Valor">{{ envio.valor }} <span class="cell-unit">{{ envio.instrumento.unidad }}</span></td>
+                    <td data-label="Hexadecimal"><code>{{ palabra.hexadecimal }}</code></td>
+                    <td class="word-cell" data-label="Palabra y campos">
+                      <details>
+                        <summary>Ver palabra de 32 bits</summary>
+                        <div class="word-details">
+                          <div class="word-binary-group">
+                            <span>Palabra binaria</span>
+                            <code class="word-binary">{{ palabra.binario }}</code>
+                          </div>
+                          <dl class="word-fields">
+                            <div><dt>Label</dt><dd>{{ palabra.label }} <code>0x{{ '%02X'|format(palabra.label) }}</code> · {{ palabra.label_bits }}</dd></div>
+                            <div><dt>SDI</dt><dd>{{ palabra.sdi }} · {{ palabra.sdi_bits }}</dd></div>
+                            <div><dt>Data BNR</dt><dd>{{ palabra.data_value }} · <code>{{ palabra.data_bits }}</code></dd></div>
+                            <div><dt>SSM</dt><dd>{{ palabra.ssm }} · {{ palabra.ssm_bits }}</dd></div>
+                            <div><dt>Paridad impar</dt><dd>{{ palabra.paridad }}</dd></div>
+                          </dl>
+                        </div>
+                      </details>
+                    </td>
+                    <td class="transmit-cell" data-label="Transmisión UART">
+                      <details>
+                        <summary>Transmitir</summary>
+                        <form class="transmission-form" method="post" action="{{ url_for('main.transmitir_envio', envio_id=envio.id) }}#envios">
+                          <label class="field" for="modo_{{ envio.id }}">
+                            <span>Modo</span>
+                            <select id="modo_{{ envio.id }}" name="modo" required data-transmission-mode>
+                              <option value="simulacion" selected>Simulación</option>
+                              <option value="uart">Puerto COM</option>
+                            </select>
+                          </label>
+                          <label class="field" for="puerto_{{ envio.id }}">
+                            <span>Puerto COM</span>
+                            <select id="puerto_{{ envio.id }}" name="puerto" disabled data-transmission-port>
+                              <option value="" selected disabled>Seleccioná un puerto</option>
+                              {% for puerto in puertos_seriales %}
+                                <option value="{{ puerto.device }}">{{ puerto.device }} · {{ puerto.description }}</option>
+                              {% else %}
+                                <option value="" disabled>No se detectaron puertos COM</option>
+                              {% endfor %}
+                            </select>
+                          </label>
+                          <label class="field" for="velocidad_{{ envio.id }}">
+                            <span>Velocidad UART</span>
+                            <select id="velocidad_{{ envio.id }}" name="velocidad" required>
+                              {% for velocidad in velocidades_uart %}
+                                <option value="{{ velocidad }}">{{ velocidad }} baudios</option>
+                              {% endfor %}
+                            </select>
+                          </label>
+                          <label class="field" for="orden_{{ envio.id }}">
+                            <span>Orden de bytes</span>
+                            <select id="orden_{{ envio.id }}" name="orden_bytes" required>
+                              <option value="big">Big-endian · primero el byte más significativo</option>
+                              <option value="little">Little-endian · primero el byte menos significativo</option>
+                            </select>
+                          </label>
+                          <p class="transmission-note">UART 8N1: 8 bits de datos, sin paridad y 1 bit de parada. Se envían los 4 bytes de la palabra en el orden seleccionado.</p>
+                          <button class="button button-primary" type="submit">Transmitir</button>
+                        </form>
+                      </details>
+                    </td>
+                    <td class="audio-cell" data-label="Salida de audio">
+                      <details>
+                        <summary>Vista previa y audio</summary>
+                        <form class="audio-form" method="post" action="{{ url_for('main.reproducir_audio', envio_id=envio.id) }}#envios" data-audio-form>
+                          <label class="field" for="dispositivo_audio_{{ envio.id }}">
+                            <span>Dispositivo de salida</span>
+                            <select id="dispositivo_audio_{{ envio.id }}" name="dispositivo_audio" data-audio-device>
+                              <option value="">Vista previa sin dispositivo</option>
+                              {% for dispositivo in dispositivos_audio %}
+                                <option value="{{ dispositivo.index }}" data-sample-rate="{{ dispositivo.sample_rate }}">{{ dispositivo.name }} · {{ dispositivo.sample_rate }} Hz</option>
+                              {% else %}
+                                <option value="" disabled>No se detectaron salidas de audio</option>
+                              {% endfor %}
+                            </select>
+                          </label>
+                          <label class="field" for="modo_audio_{{ envio.id }}">
+                            <span>Modo</span>
+                            <select id="modo_audio_{{ envio.id }}" name="modo_audio" data-audio-mode>
+                              <option value="simulacion" selected>Simulación, sin sonido</option>
+                              <option value="reproducir" {% if not dispositivos_audio %}disabled{% endif %}>Reproducir por auriculares</option>
+                            </select>
+                          </label>
+                          <label class="field amplitude-field" for="amplitud_{{ envio.id }}">
+                            <span>Amplitud digital <output data-amplitude-output>0.020</output></span>
+                            <input id="amplitud_{{ envio.id }}" name="amplitud" type="range" min="0" max="0.05" step="0.005" value="0.02" data-audio-amplitude>
+                          </label>
+                          <input type="hidden" name="previsualizada" value="0" data-previewed>
+                          <div class="waveform-panel">
+                            <div class="waveform-toolbar">
+                              <button class="button button-small button-quiet" type="button" data-preview-audio data-preview-url="{{ url_for('main.previsualizar_audio', envio_id=envio.id) }}">Previsualizar forma de onda</button>
+                              <span data-waveform-status aria-live="polite">La previsualización no reproduce sonido.</span>
+                            </div>
+                            <canvas class="waveform-canvas" width="960" height="220" aria-label="Previsualización de forma de onda RZ"></canvas>
+                            <p class="waveform-meta" data-waveform-meta>32 bits · forma RZ · ritmo de demostración según frecuencia de muestreo</p>
+                          </div>
+                          <p class="audio-note">1 = pulso positivo; 0 = pulso negativo. Cada pulso vuelve a cero a mitad del bit. Amplitud PCM limitada a 0.05.</p>
+                          <button class="button button-primary" type="submit">Transmitir por audio</button>
+                        </form>
+                      </details>
+                    </td>
+                    <td class="row-actions">
+                      <a class="button button-small button-quiet" href="{{ url_for('main.editar_envio', envio_id=envio.id) }}#envios">Editar</a>
+                      <form method="post" action="{{ url_for('main.eliminar_envio', envio_id=envio.id) }}#envios" onsubmit="return confirm('¿Eliminar este envío del historial?');">
+                        <button class="button button-small button-danger" type="submit">Eliminar</button>
+                      </form>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="empty-state">
+            <span class="empty-index">02 / HISTORIAL</span>
+            <h3>Aún no hay envíos</h3>
+            <p>Los valores validados y sus palabras codificadas aparecerán en este historial.</p>
+          </div>
+        {% endif %}
+        <p class="notice"><strong>Validación:</strong> un valor dentro del rango también debe ser representable con la resolución BNR y caber en el campo de datos firmado de 19 bits.</p>
+
+        <div class="transmission-history">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Auditoría</p>
+              <h3>Intentos de transmisión</h3>
+            </div>
+            <span class="build-tag">{{ transmisiones|length }} registrados</span>
+          </div>
+          {% if transmisiones %}
+            <div class="table-scroll">
+              <table class="transmission-log-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">Instrumento / valor</th>
+                    <th scope="col">Puerto y modo</th>
+                    <th scope="col">UART</th>
+                    <th scope="col">Palabra enviada</th>
+                    <th scope="col">Bytes UART</th>
+                    <th scope="col">Resultado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for intento in transmisiones %}
+                    <tr>
+                      <td data-label="Fecha">{{ intento.creado_en.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                      <td data-label="Instrumento / valor"><strong>{{ intento.instrumento_nombre }}</strong><span class="cell-note">{{ intento.valor }}</span></td>
+                      <td data-label="Puerto y modo">{{ intento.puerto }}<span class="cell-note">{{ intento.modo }}</span></td>
+                      <td data-label="UART">{{ intento.velocidad }} baudios<span class="cell-note">{{ 'Big-endian' if intento.orden_bytes == 'big' else 'Little-endian' }} · 8N1</span></td>
+                      <td class="log-word" data-label="Palabra enviada"><code>{{ intento.palabra_hexadecimal }}</code><span class="cell-note log-binary">{{ intento.palabra_binaria }}</span></td>
+                      <td data-label="Bytes UART"><code>{{ intento.bytes_hexadecimales or 'Sin bytes' }}</code></td>
+                      <td data-label="Resultado"><span class="transmission-status status-{{ intento.resultado }}">{{ intento.resultado }}</span><span class="cell-note">{{ intento.mensaje }}</span></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="no-transmissions">Todavía no hay intentos. Consultar o editar un envío no transmite datos.</p>
+          {% endif %}
+        </div>
+        <div class="audio-history">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Salida de demostración</p>
+              <h3>Intentos de audio</h3>
+            </div>
+            <span class="build-tag">{{ reproducciones_audio|length }} registrados</span>
+          </div>
+          {% if reproducciones_audio %}
+            <div class="table-scroll">
+              <table class="audio-log-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Fecha</th>
+                    <th scope="col">Instrumento / valor</th>
+                    <th scope="col">Dispositivo / modo</th>
+                    <th scope="col">Muestras / ritmo demo</th>
+                    <th scope="col">Amplitud PCM</th>
+                    <th scope="col">Bits</th>
+                    <th scope="col">Resultado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for intento in reproducciones_audio %}
+                    <tr>
+                      <td data-label="Fecha">{{ intento.creado_en.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                      <td data-label="Instrumento / valor"><strong>{{ intento.instrumento_nombre }}</strong><span class="cell-note">{{ intento.valor }}</span></td>
+                      <td data-label="Dispositivo / modo">{{ intento.dispositivo }}<span class="cell-note">{{ intento.modo }}</span></td>
+                      <td data-label="Muestras / ritmo demo">{{ intento.frecuencia_muestreo }} Hz<span class="cell-note">{{ intento.muestras_por_bit }} muestras/bit · {{ '%.2f'|format(intento.ritmo_demostracion) }} bits/s demo</span></td>
+                      <td data-label="Amplitud PCM">{{ '%.4f'|format(intento.amplitud) }}</td>
+                      <td class="audio-log-bits" data-label="Bits">{{ intento.palabra_binaria }}</td>
+                      <td data-label="Resultado"><span class="audio-status audio-{{ intento.resultado }}">{{ intento.resultado }}</span><span class="cell-note">{{ intento.mensaje }}</span></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <p class="no-transmissions">Todavía no hay intentos de audio. Abrir la página o previsualizar no reproduce sonido.</p>
+          {% endif %}
+        </div>
+        <p class="notice notice-caution"><strong>Demostración:</strong> UART envía bytes por una interfaz serial y no genera la señal eléctrica ARINC 429. No conectes este flujo directamente a instrumentos aeronáuticos reales.</p>
+      </section>
+      <footer>ARINC-429-completo <span>·</span> Entorno educativo</footer>
+    </main>
+  </body>
+</html>
