@@ -27,8 +27,10 @@ Abrí `http://127.0.0.1:5000/`. Si PowerShell bloquea la activación del entorno
 ## MySQL
 
 1. Ejecutá `sql/schema.sql` en MySQL Workbench o desde el cliente MySQL. El script crea la base `arinc429` y sus tablas.
-2. Copiá `.env.example` como `.env` y completá `DATABASE_URL` con la URL de conexión de tu instalación MySQL. No agregues `.env` al repositorio ni compartas sus credenciales.
-3. Reiniciá `python run.py`. Sin `DATABASE_URL`, la app usa SQLite local para facilitar el primer arranque.
+2. Copiá `.env.example` como `.env` y completá `DATABASE_URL` con la URL de conexión de tu instalación MySQL. No agregues `.env` al repositorio ni compartas sus credenciales. La ruta de `.env` se resuelve desde el proyecto, no desde el directorio actual.
+3. Detené cualquier servidor Flask que ya esté ejecutándose y volvé a iniciar `python run.py`: la configuración se lee al iniciar el proceso. Al arrancar, se informa el driver, host, puerto y nombre de base activos, nunca las credenciales. Las variables del proceso tienen precedencia sobre `.env`.
+
+Sin `DATABASE_URL`, la app usa SQLite local para facilitar el primer arranque y lo indica en la consola. SQLite y MySQL son bases separadas: los registros históricos de `instance/arinc429.db` no se copian automáticamente a MySQL.
 
 ## Codificación inicial
 
